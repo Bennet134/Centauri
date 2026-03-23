@@ -1,4 +1,4 @@
-const CACHE = 'centauri-v1';
+const CACHE = 'centauri-v2';
 const ASSETS = [
   './',
   './index.html',
