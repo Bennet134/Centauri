@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#fafaf8">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Centauri">
+  <link rel="manifest" href="manifest.json">
+  <link id="apple-touch-icon" rel="apple-touch-icon" href="">
+  <title>Centauri</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app">
+    <div id="views">
+
+      <!-- Today -->
+      <section id="view-today" class="view active" aria-label="Today">
+        <header class="view-header">
+          <span class="header-date" id="header-date"></span>
+          <h1>Today</h1>
+        </header>
+        <div class="view-content" id="today-content"></div>
+      </section>
+
+      <!-- Log -->
+      <section id="view-history" class="view" aria-label="Log">
+        <header class="view-header">
+          <h1>Log</h1>
+        </header>
+        <div class="view-content" id="history-content"></div>
+      </section>
+
+      <!-- Chart -->
+      <section id="view-graph" class="view" aria-label="Chart">
+        <header class="view-header">
+          <h1>Weight</h1>
+        </header>
+        <div class="view-content" id="graph-content"></div>
+      </section>
+
+      <!-- Week -->
+      <section id="view-weekly" class="view" aria-label="Week">
+        <header class="view-header">
+          <h1>This week</h1>
+        </header>
+        <div class="view-content" id="weekly-content"></div>
+      </section>
+
+    </div>
+
+    <!-- Bottom Nav -->
+    <nav id="bottom-nav" role="navigation" aria-label="Main navigation">
+      <button class="nav-btn active" data-view="today" aria-label="Today">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        <span>Today</span>
+      </button>
+      <button class="nav-btn" data-view="history" aria-label="Log">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="8" y1="6" x2="21" y2="6"/>
+          <line x1="8" y1="12" x2="21" y2="12"/>
+          <line x1="8" y1="18" x2="21" y2="18"/>
+          <circle cx="3" cy="6" r="0.5" fill="currentColor"/>
+          <circle cx="3" cy="12" r="0.5" fill="currentColor"/>
+          <circle cx="3" cy="18" r="0.5" fill="currentColor"/>
+        </svg>
+        <span>Log</span>
+      </button>
+      <button class="nav-btn" data-view="graph" aria-label="Chart">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        <span>Chart</span>
+      </button>
+      <button class="nav-btn" data-view="weekly" aria-label="Week">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        <span>Week</span>
+      </button>
+    </nav>
+
+    <!-- Toast -->
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
