@@ -32,6 +32,8 @@ const DB = {
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
 
+const LOCALE = 'de-DE';
+
 function todayStr() {
   return new Date().toISOString().split('T')[0];
 }
@@ -44,9 +46,9 @@ function parseLocalDate(dateStr) {
 function formatDate(dateStr) {
   const d = parseLocalDate(dateStr);
   return {
-    full:    d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
-    weekday: d.toLocaleDateString(undefined, { weekday: 'short' }),
-    long:    d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })
+    full:    d.toLocaleDateString(LOCALE, { month: 'short', day: 'numeric' }),
+    weekday: d.toLocaleDateString(LOCALE, { weekday: 'short' }),
+    long:    d.toLocaleDateString(LOCALE, { weekday: 'long', month: 'long', day: 'numeric' })
   };
 }
 
@@ -95,9 +97,7 @@ const state = {
 function renderToday() {
   const date = todayStr();
   const existing = DB.getEntry(date);
-  const fmt = formatDate(date);
-
-  document.getElementById('header-date').textContent = fmt.long;
+  document.getElementById('header-date').textContent = formatDate(date).long;
 
   const container = document.getElementById('today-content');
   container.innerHTML = (existing && !state.editing)
@@ -105,66 +105,57 @@ function renderToday() {
     : buildForm(existing);
 
   if (!existing || state.editing) {
-    bindFormEvents(existing);
-    // Auto-focus weight if empty
+    bindFormEvents();
     const wInput = document.getElementById('weight-input');
-    if (wInput && !wInput.value) {
-      setTimeout(() => wInput.focus(), 80);
-    }
+    if (wInput && !wInput.value) setTimeout(() => wInput.focus(), 80);
   }
 }
 
 function buildForm(prefill) {
-  const f = state.form;
+  const f  = state.form;
   const w  = prefill ? prefill.weight     : (f.weight     || '');
   const sd = prefill ? prefill.softdrinks : f.softdrinks;
   const ea = prefill ? prefill.eating     : f.eating;
   const mv = prefill ? prefill.movement   : f.movement;
 
-  const sdOpts = [['0','None'],['1','One'],['2','Two+']];
-  const eaOpts = [['bad','Junk'],['okay','Okay'],['clean','Clean']];
-  const mvOpts = [['none','None'],['light','Light'],['active','Active']];
-
-  const pillGroup = (group, opts, cur, tones = {}) => `
+  const pillGroup = (group, opts, cur) => `
     <div class="option-pills" data-group="${group}">
-      ${opts.map(([val, label]) => {
-        const isSel = cur !== null && String(cur) === String(val);
-        const tone = isSel && tones[val] ? ` tone-${tones[val]}` : '';
-        return `<button class="pill${isSel ? ' selected' + tone : ''}" data-value="${val}">${label}</button>`;
+      ${opts.map(([val, label, tone]) => {
+        const sel = cur !== null && String(cur) === String(val);
+        return `<button class="pill${sel ? ' selected' + (tone ? ' tone-' + tone : '') : ''}" data-value="${val}">${label}</button>`;
       }).join('')}
     </div>`;
 
   return `
     <div class="weight-section">
-      <span class="field-label">Weight</span>
+      <span class="field-label">Gewicht</span>
       <div class="weight-input-row">
         <input id="weight-input" class="weight-input" type="number"
-          inputmode="decimal" placeholder="0.0"
-          step="0.1" min="20" max="300"
-          value="${w}">
+          inputmode="decimal" placeholder="0,0"
+          step="0.1" min="20" max="300" value="${w}">
         <span class="weight-unit">kg</span>
       </div>
     </div>
 
     <div class="option-group">
-      <span class="field-label">Soft drinks</span>
-      ${pillGroup('softdrinks', sdOpts, sd, { 2: 'red', 1: 'amber' })}
+      <span class="field-label">Softdrinks</span>
+      ${pillGroup('softdrinks', [['0','Keine',''],['1','Einer','amber'],['2','Zwei+','red']], sd)}
     </div>
 
     <div class="option-group">
-      <span class="field-label">Eating</span>
-      ${pillGroup('eating', eaOpts, ea, { bad: 'red', okay: 'amber' })}
+      <span class="field-label">Ernährung</span>
+      ${pillGroup('eating', [['bad','Ungesund','red'],['okay','Okay','amber'],['clean','Gesund','']], ea)}
     </div>
 
     <div class="option-group">
-      <span class="field-label">Movement</span>
-      ${pillGroup('movement', mvOpts, mv)}
+      <span class="field-label">Bewegung</span>
+      ${pillGroup('movement', [['none','Keine',''],['light','Leicht',''],['active','Aktiv','']], mv)}
     </div>
 
-    <button id="save-btn" class="save-btn">Save</button>`;
+    <button id="save-btn" class="save-btn">Speichern</button>`;
 }
 
-function bindFormEvents(prefill) {
+function bindFormEvents() {
   const wInput = document.getElementById('weight-input');
   wInput?.addEventListener('input', e => { state.form.weight = e.target.value; });
 
@@ -175,14 +166,11 @@ function bindFormEvents(prefill) {
 
       const gName = group.dataset.group;
       const val   = pill.dataset.value;
-      const parsed = gName === 'softdrinks' ? parseInt(val) : val;
+      state.form[gName] = gName === 'softdrinks' ? parseInt(val) : val;
 
-      state.form[gName] = parsed;
-
-      // Update pill styles
-      group.querySelectorAll('.pill').forEach(p => {
-        p.classList.remove('selected', 'tone-red', 'tone-amber');
-      });
+      group.querySelectorAll('.pill').forEach(p =>
+        p.classList.remove('selected', 'tone-red', 'tone-amber')
+      );
       pill.classList.add('selected');
 
       if (gName === 'softdrinks') {
@@ -196,13 +184,12 @@ function bindFormEvents(prefill) {
     });
   });
 
-  document.getElementById('save-btn')?.addEventListener('click', () => saveEntry());
+  document.getElementById('save-btn')?.addEventListener('click', saveEntry);
 }
 
 function buildSavedCard(entry, date) {
-  // Find previous entry for delta
-  const all = DB.getEntries().sort((a, b) => a.date.localeCompare(b.date));
-  const idx = all.findIndex(e => e.date === date);
+  const all  = DB.getEntries().sort((a, b) => a.date.localeCompare(b.date));
+  const idx  = all.findIndex(e => e.date === date);
   const prev = idx > 0 ? all[idx - 1] : null;
 
   let deltaHtml = '';
@@ -216,22 +203,22 @@ function buildSavedCard(entry, date) {
   }
 
   const eatBadge = entry.eating === 'clean'
-    ? `<span class="badge badge-green">Clean eating</span>`
+    ? `<span class="badge badge-green">Gesunde Ernährung</span>`
     : entry.eating === 'okay'
-    ? `<span class="badge badge-amber">Okay eating</span>`
-    : `<span class="badge badge-red">Junk food</span>`;
+    ? `<span class="badge badge-amber">Okay Ernährung</span>`
+    : `<span class="badge badge-red">Ungesundes Essen</span>`;
 
   const drinkBadge = entry.softdrinks === 0
-    ? `<span class="badge badge-green">No soft drinks</span>`
+    ? `<span class="badge badge-green">Keine Softdrinks</span>`
     : entry.softdrinks === 1
-    ? `<span class="badge badge-amber">1 soft drink</span>`
-    : `<span class="badge badge-red">2+ soft drinks</span>`;
+    ? `<span class="badge badge-amber">1 Softdrink</span>`
+    : `<span class="badge badge-red">2+ Softdrinks</span>`;
 
   const moveBadge = entry.movement === 'active'
-    ? `<span class="badge badge-green">Active</span>`
+    ? `<span class="badge badge-green">Aktiv</span>`
     : entry.movement === 'light'
-    ? `<span class="badge badge-gray">Light activity</span>`
-    : `<span class="badge badge-gray">No movement</span>`;
+    ? `<span class="badge badge-gray">Leichte Bewegung</span>`
+    : `<span class="badge badge-gray">Keine Bewegung</span>`;
 
   return `
     <div class="saved-card">
@@ -245,15 +232,13 @@ function buildSavedCard(entry, date) {
         ${drinkBadge}
         ${moveBadge}
       </div>
-      <button class="edit-btn" id="edit-btn">Edit entry</button>
+      <button class="edit-btn" id="edit-btn">Eintrag bearbeiten</button>
     </div>`;
 }
 
 function startEdit() {
   const entry = DB.getEntry(todayStr());
-  if (entry) {
-    state.form = { ...entry };
-  }
+  if (entry) state.form = { ...entry };
   state.editing = true;
   renderToday();
 }
@@ -272,26 +257,22 @@ function saveEntry() {
   const btn = document.getElementById('save-btn');
   if (btn) btn.classList.add('saving');
 
-  const entry = {
+  DB.upsertEntry({
     date:       todayStr(),
     weight,
     softdrinks: state.form.softdrinks !== null ? state.form.softdrinks : 0,
     eating:     state.form.eating     || 'okay',
     movement:   state.form.movement   || 'none'
-  };
+  });
 
-  DB.upsertEntry(entry);
   state.editing = false;
   state.form = { weight: '', softdrinks: null, eating: null, movement: null };
 
-  showToast('Saved');
+  showToast('Gespeichert');
   renderToday();
 }
 
-// Expose for inline onclick fallback
 window.startEdit = startEdit;
-
-// Delegated click for edit button
 document.addEventListener('click', e => {
   if (e.target.id === 'edit-btn') startEdit();
 });
@@ -299,55 +280,51 @@ document.addEventListener('click', e => {
 // ─── History View ─────────────────────────────────────────────────────────────
 
 function renderHistory() {
-  const entries = DB.getEntries();
+  const entries   = DB.getEntries();
   const container = document.getElementById('history-content');
 
   if (entries.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
-        <p>No entries yet.<br>Start by logging today's weight.</p>
+        <p>Noch keine Einträge.<br>Starte mit dem heutigen Gewicht.</p>
       </div>`;
     return;
   }
 
-  // Sort ascending for delta calc
   const asc = [...entries].sort((a, b) => a.date.localeCompare(b.date));
 
   const items = entries.map((entry, i) => {
-    const fmt = formatDate(entry.date);
+    const fmt     = formatDate(entry.date);
     const isToday = entry.date === todayStr();
+    const ascIdx  = asc.findIndex(e => e.date === entry.date);
+    const prev    = ascIdx > 0 ? asc[ascIdx - 1] : null;
 
-    // Delta vs previous entry
-    const ascIdx = asc.findIndex(e => e.date === entry.date);
-    const prev   = ascIdx > 0 ? asc[ascIdx - 1] : null;
     let deltaHtml = '';
     if (prev) {
       const diff = entry.weight - prev.weight;
       if (Math.abs(diff) >= 0.05) {
-        const cls  = diff < 0 ? 'delta-down' : 'delta-up';
+        const cls = diff < 0 ? 'badge-green' : 'badge-red';
         const sign = diff < 0 ? '↓' : '↑';
-        deltaHtml = `<span class="history-delta badge ${diff < 0 ? 'badge-green' : 'badge-red'}">${sign}${Math.abs(diff).toFixed(1)}</span>`;
+        deltaHtml = `<span class="history-delta badge ${cls}">${sign}${Math.abs(diff).toFixed(1)}</span>`;
       }
     }
 
-    const eatDot  = entry.eating === 'clean'  ? 'dot-green' : entry.eating  === 'okay' ? 'dot-amber' : 'dot-red';
-    const drinkDot= entry.softdrinks === 0   ? 'dot-green' : entry.softdrinks === 1    ? 'dot-amber' : 'dot-red';
-    const moveDot = entry.movement === 'active'? 'dot-green': entry.movement === 'light'? 'dot-amber' : 'dot-gray';
+    const eatDot   = entry.eating === 'clean'    ? 'dot-green' : entry.eating === 'okay'     ? 'dot-amber' : 'dot-red';
+    const drinkDot = entry.softdrinks === 0      ? 'dot-green' : entry.softdrinks === 1      ? 'dot-amber' : 'dot-red';
+    const moveDot  = entry.movement === 'active' ? 'dot-green' : entry.movement === 'light'  ? 'dot-amber' : 'dot-gray';
 
     return `
       <div class="history-item" style="animation-delay:${Math.min(i * 25, 180)}ms">
         <div class="history-date">
           <div class="day-num">${fmt.full}</div>
-          <div class="day-label">${isToday ? 'Today' : fmt.weekday}</div>
+          <div class="day-label">${isToday ? 'Heute' : fmt.weekday}</div>
         </div>
-        <div class="history-weight">
-          ${entry.weight}<span class="unit"> kg</span>
-        </div>
+        <div class="history-weight">${entry.weight}<span class="unit"> kg</span></div>
         ${deltaHtml}
         <div class="history-dots">
-          <div class="dot ${eatDot}"   title="Eating: ${entry.eating}"></div>
+          <div class="dot ${eatDot}"   title="Ernährung: ${entry.eating}"></div>
           <div class="dot ${drinkDot}" title="Drinks: ${entry.softdrinks}"></div>
-          <div class="dot ${moveDot}"  title="Movement: ${entry.movement}"></div>
+          <div class="dot ${moveDot}"  title="Bewegung: ${entry.movement}"></div>
         </div>
       </div>`;
   }).join('');
@@ -366,7 +343,7 @@ function renderGraph() {
   if (entries.length < 2) {
     container.innerHTML = `
       <div class="empty-state">
-        <p>Log at least 2 days<br>to see your chart.</p>
+        <p>Trage mindestens 2 Tage ein,<br>um die Grafik zu sehen.</p>
       </div>`;
     return;
   }
@@ -377,7 +354,6 @@ function renderGraph() {
   const last  = entries[entries.length - 1];
   const diff  = last.weight - first.weight;
   const diffStr = (diff >= 0 ? '+' : '') + diff.toFixed(1) + ' kg';
-  const diffCls = diff <= 0 ? 'dot-green' : 'dot-red';
 
   container.innerHTML = `
     <div class="chart-container">
@@ -385,20 +361,19 @@ function renderGraph() {
     </div>
     <div class="chart-meta">
       <div class="chart-meta-item">
-        <div class="chart-meta-label">Low</div>
+        <div class="chart-meta-label">Min</div>
         <div class="chart-meta-value">${minW.toFixed(1)} kg</div>
       </div>
       <div class="chart-meta-item">
-        <div class="chart-meta-label">High</div>
+        <div class="chart-meta-label">Max</div>
         <div class="chart-meta-value">${maxW.toFixed(1)} kg</div>
       </div>
       <div class="chart-meta-item">
-        <div class="chart-meta-label">Change</div>
+        <div class="chart-meta-label">Änderung</div>
         <div class="chart-meta-value" style="color:var(${diff <= 0 ? '--green' : '--red'})">${diffStr}</div>
       </div>
     </div>`;
 
-  // Animate line
   setTimeout(() => {
     const path = document.getElementById('chart-line');
     if (!path) return;
@@ -406,11 +381,9 @@ function renderGraph() {
     path.style.strokeDasharray  = len;
     path.style.strokeDashoffset = len;
     path.style.transition = 'stroke-dashoffset 1.1s cubic-bezier(0.4, 0, 0.2, 1)';
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => { path.style.strokeDashoffset = 0; });
-    });
-
-    // Animate dots
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      path.style.strokeDashoffset = 0;
+    }));
     document.querySelectorAll('.chart-dot').forEach((dot, i) => {
       dot.style.opacity = '0';
       setTimeout(() => {
@@ -424,24 +397,18 @@ function renderGraph() {
 function buildSVGChart(entries) {
   const VW = 320, VH = 180;
   const PL = 40, PR = 12, PT = 12, PB = 26;
-  const CW = VW - PL - PR;
-  const CH = VH - PT - PB;
+  const CW = VW - PL - PR, CH = VH - PT - PB;
 
   const weights = entries.map(e => e.weight);
-  const minW = Math.min(...weights);
-  const maxW = Math.max(...weights);
+  const minW = Math.min(...weights), maxW = Math.max(...weights);
   const range = (maxW - minW) || 1;
-  const padding = range * 0.15;
-  const yMin = minW - padding;
-  const yMax = maxW + padding;
-  const yRange = yMax - yMin;
+  const pad = range * 0.15;
+  const yMin = minW - pad, yMax = maxW + pad, yRange = yMax - yMin;
 
   const xOf = i => PL + (i / (entries.length - 1)) * CW;
   const yOf = w => PT + (1 - (w - yMin) / yRange) * CH;
+  const pts  = entries.map((e, i) => ({ x: xOf(i), y: yOf(e.weight) }));
 
-  const pts = entries.map((e, i) => ({ x: xOf(i), y: yOf(e.weight), w: e.weight }));
-
-  // Smooth bezier path
   let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
   for (let i = 1; i < pts.length; i++) {
     const p0 = pts[i - 1], p1 = pts[i];
@@ -449,18 +416,15 @@ function buildSVGChart(entries) {
     d += ` C ${cx.toFixed(1)} ${p0.y.toFixed(1)} ${cx.toFixed(1)} ${p1.y.toFixed(1)} ${p1.x.toFixed(1)} ${p1.y.toFixed(1)}`;
   }
 
-  // Area fill
   const areaD = d
-    + ` L ${pts[pts.length - 1].x.toFixed(1)} ${(VH - PB).toFixed(1)}`
-    + ` L ${pts[0].x.toFixed(1)} ${(VH - PB).toFixed(1)} Z`;
+    + ` L ${pts[pts.length-1].x.toFixed(1)} ${(VH-PB).toFixed(1)}`
+    + ` L ${pts[0].x.toFixed(1)} ${(VH-PB).toFixed(1)} Z`;
 
-  // Y-axis labels (3 ticks)
   const yTicks = [0, 0.5, 1].map(t => {
     const val = yMin + t * yRange;
     return { y: yOf(val), label: val.toFixed(1) };
   });
 
-  // X-axis labels (first, mid, last)
   const xTickIdxs = [0, Math.floor((entries.length - 1) / 2), entries.length - 1];
   const xTicks = xTickIdxs.map(i => ({
     x: xOf(i),
@@ -468,15 +432,15 @@ function buildSVGChart(entries) {
   }));
 
   const gridLines = yTicks.map(t =>
-    `<line x1="${PL}" y1="${t.y.toFixed(1)}" x2="${VW - PR}" y2="${t.y.toFixed(1)}" stroke="#e8e5df" stroke-width="1"/>`
+    `<line x1="${PL}" y1="${t.y.toFixed(1)}" x2="${VW-PR}" y2="${t.y.toFixed(1)}" stroke="#e8e5df" stroke-width="1"/>`
   ).join('');
 
   const yLabels = yTicks.map(t =>
-    `<text x="${PL - 5}" y="${(t.y + 3.5).toFixed(1)}" text-anchor="end" font-size="9.5" fill="#b0aca6">${t.label}</text>`
+    `<text x="${PL-5}" y="${(t.y+3.5).toFixed(1)}" text-anchor="end" font-size="9.5" fill="#b0aca6">${t.label}</text>`
   ).join('');
 
   const xLabels = xTicks.map(t =>
-    `<text x="${t.x.toFixed(1)}" y="${VH - 6}" text-anchor="middle" font-size="9.5" fill="#b0aca6">${t.label}</text>`
+    `<text x="${t.x.toFixed(1)}" y="${VH-6}" text-anchor="middle" font-size="9.5" fill="#b0aca6">${t.label}</text>`
   ).join('');
 
   const dots = pts.map((p, i) => {
@@ -512,14 +476,14 @@ function renderWeekly() {
   const { start: ws, end: we } = getWeekBounds();
   const { start: lws, end: lwe } = getWeekBounds(new Date(parseLocalDate(ws) - 1));
 
-  const all       = DB.getEntries();
-  const thisWeek  = all.filter(e => e.date >= ws  && e.date <= we);
-  const lastWeek  = all.filter(e => e.date >= lws && e.date <= lwe);
+  const all      = DB.getEntries();
+  const thisWeek = all.filter(e => e.date >= ws  && e.date <= we);
+  const lastWeek = all.filter(e => e.date >= lws && e.date <= lwe);
 
   if (thisWeek.length === 0) {
     container.innerHTML = `
       <div class="empty-state">
-        <p>No entries this week yet.</p>
+        <p>Diese Woche noch keine Einträge.</p>
       </div>`;
     return;
   }
@@ -528,17 +492,18 @@ function renderWeekly() {
   const drinks = thisWeek.reduce((s, e) => s + e.softdrinks, 0);
   const days   = thisWeek.length;
 
-  // Week day dots (Mon–Sun)
-  const DAYS = ['M','T','W','T','F','S','S'];
-  const weekStart = parseLocalDate(ws);
-  const todayDate = todayStr();
-  const dayDots = DAYS.map((lbl, i) => {
+  // Mo Di Mi Do Fr Sa So
+  const DAY_LABELS = ['Mo','Di','Mi','Do','Fr','Sa','So'];
+  const weekStart  = parseLocalDate(ws);
+  const todayDate  = todayStr();
+
+  const dayDots = DAY_LABELS.map((lbl, i) => {
     const d = new Date(weekStart);
     d.setDate(weekStart.getDate() + i);
-    const dStr = d.toISOString().split('T')[0];
+    const dStr   = d.toISOString().split('T')[0];
     const logged = thisWeek.some(e => e.date === dStr);
-    const isFuture = dStr > todayDate;
-    const cls = isFuture ? '' : logged ? 'logged' : (dStr === todayDate ? 'today-empty' : '');
+    const isFut  = dStr > todayDate;
+    const cls    = isFut ? '' : logged ? 'logged' : (dStr === todayDate ? 'today-empty' : '');
     return `
       <div class="week-day">
         <div class="week-day-label">${lbl}</div>
@@ -546,19 +511,18 @@ function renderWeekly() {
       </div>`;
   }).join('');
 
-  // Feedback
   let feedback = '', feedbackCls = '';
   if (lastWeek.length > 0) {
     const lastAvg = lastWeek.reduce((s, e) => s + e.weight, 0) / lastWeek.length;
     const diff = avgW - lastAvg;
     if (diff < -0.2) {
-      feedback = `Down ${Math.abs(diff).toFixed(1)} kg from last week. Keep going.`;
+      feedback    = `${Math.abs(diff).toFixed(1)} kg weniger als letzte Woche. Weiter so.`;
       feedbackCls = 'feedback-better';
     } else if (diff > 0.2) {
-      feedback = `Up ${diff.toFixed(1)} kg from last week. Stay consistent.`;
+      feedback    = `${diff.toFixed(1)} kg mehr als letzte Woche. Bleib konsequent.`;
       feedbackCls = 'feedback-worse';
     } else {
-      feedback = 'About the same as last week. Consistency is the foundation.';
+      feedback    = 'Etwa wie letzte Woche. Konstanz ist die Basis.';
       feedbackCls = 'feedback-same';
     }
   }
@@ -566,30 +530,28 @@ function renderWeekly() {
   container.innerHTML = `
     <div class="stat-grid">
       <div class="stat-card full-width">
-        <span class="stat-label">Average weight</span>
+        <span class="stat-label">Durchschnittsgewicht</span>
         <div class="stat-value"><span id="cu-weight">—</span><span class="unit"> kg</span></div>
       </div>
       <div class="stat-card">
-        <span class="stat-label">Soft drinks</span>
+        <span class="stat-label">Softdrinks</span>
         <div class="stat-value"><span id="cu-drinks">—</span></div>
       </div>
       <div class="stat-card">
-        <span class="stat-label">Days logged</span>
+        <span class="stat-label">Tage eingetragen</span>
         <div class="stat-value"><span id="cu-days">—</span><span class="unit"> / 7</span></div>
       </div>
     </div>
 
     <div class="stat-card" style="margin-bottom:10px">
-      <span class="stat-label">This week</span>
+      <span class="stat-label">Diese Woche</span>
       <div class="week-days">${dayDots}</div>
     </div>
 
-    ${feedback ? `<div class="weekly-feedback ${feedbackCls}">${feedback}</div>` : ''}
-  `;
+    ${feedback ? `<div class="weekly-feedback ${feedbackCls}">${feedback}</div>` : ''}`;
 
-  // Count-up animations
-  const wEl = document.getElementById('cu-weight');
-  const dEl = document.getElementById('cu-drinks');
+  const wEl  = document.getElementById('cu-weight');
+  const dEl  = document.getElementById('cu-drinks');
   const dyEl = document.getElementById('cu-days');
   if (wEl)  countUp(wEl,  avgW,   1);
   if (dEl)  countUp(dEl,  drinks, 0);
@@ -607,8 +569,7 @@ const VIEWS = {
 
 function navigate(name) {
   if (state.view === name) return;
-  const prev = document.getElementById(VIEWS[state.view].el);
-  prev?.classList.remove('active');
+  document.getElementById(VIEWS[state.view].el)?.classList.remove('active');
   state.view = name;
   document.querySelectorAll('.nav-btn').forEach(b =>
     b.classList.toggle('active', b.dataset.view === name)
@@ -625,32 +586,32 @@ function generateIconDataURL(size) {
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const ctx = c.getContext('2d');
-  const r = size * 0.22;
 
-  // Background — rounded rect
+  // Rounded background
+  const r = size * 0.22;
   ctx.fillStyle = '#f0ede6';
   ctx.beginPath();
   ctx.moveTo(r, 0);
-  ctx.arcTo(size, 0, size, size, r);
-  ctx.arcTo(size, size, 0, size, r);
-  ctx.arcTo(0, size, 0, 0, r);
-  ctx.arcTo(0, 0, size, 0, r);
+  ctx.arcTo(size, 0,    size, size, r);
+  ctx.arcTo(size, size, 0,    size, r);
+  ctx.arcTo(0,    size, 0,    0,    r);
+  ctx.arcTo(0,    0,    size, 0,    r);
   ctx.closePath();
   ctx.fill();
 
-  // Crosshair lines
+  // 4-pointed star
   const cx = size / 2, cy = size / 2;
-  const arm = size * 0.21;
-  ctx.strokeStyle = '#2d2d2d';
-  ctx.lineWidth   = size * 0.042;
-  ctx.lineCap     = 'round';
-  ctx.beginPath(); ctx.moveTo(cx, cy - arm); ctx.lineTo(cx, cy + arm); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(cx - arm, cy); ctx.lineTo(cx + arm, cy); ctx.stroke();
+  const out = size * 0.354; // outer radius (tip to center)
+  const cp  = size * 0.146; // control-point offset (waist tightness)
 
-  // Center dot
-  ctx.fillStyle = '#4a7c59';
+  ctx.fillStyle = '#2d2d2d';
   ctx.beginPath();
-  ctx.arc(cx, cy, size * 0.07, 0, Math.PI * 2);
+  ctx.moveTo(cx,       cy - out);
+  ctx.quadraticCurveTo(cx + cp, cy - cp, cx + out, cy);
+  ctx.quadraticCurveTo(cx + cp, cy + cp, cx,       cy + out);
+  ctx.quadraticCurveTo(cx - cp, cy + cp, cx - out, cy);
+  ctx.quadraticCurveTo(cx - cp, cy - cp, cx,       cy - out);
+  ctx.closePath();
   ctx.fill();
 
   return c.toDataURL('image/png');
@@ -666,9 +627,7 @@ function setupIcons() {
 
 async function registerSW() {
   if ('serviceWorker' in navigator) {
-    try {
-      await navigator.serviceWorker.register('sw.js');
-    } catch (_) { /* SW is optional */ }
+    try { await navigator.serviceWorker.register('sw.js'); } catch (_) {}
   }
 }
 
